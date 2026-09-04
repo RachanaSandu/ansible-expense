@@ -13,6 +13,11 @@
       name: nginx
       state: present
 
+  - name: remove default nginx conf
+    ansible.builtin.file:
+      path: /etc/nginx/default.d/expense.conf 
+      state: absent
+
   - name: start and enable nginx
     ansible.builtin.service:
       name: nginx
