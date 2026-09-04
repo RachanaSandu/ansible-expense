@@ -18,11 +18,11 @@
       path: /etc/nginx/default.d/expense.conf 
       state: absent
 
-  - name: start and enable nginx
-    ansible.builtin.service:
-      name: nginx
-      state: started
-      enabled: yes
+  # - name: start and enable nginx
+  #   ansible.builtin.service:
+  #     name: nginx
+  #     state: started
+  #     enabled: yes
 
   - name: remove html directory
     ansible.builtin.file:
@@ -58,6 +58,12 @@
   - name: test nginx configuration
     ansible.builtin.command: nginx -t
 
+  - name: start and enable nginx
+    ansible.builtin.service:
+      name: nginx
+      state: started
+      enabled: yes
+      
   - name: restart nginx
     ansible.builtin.service:
       name: nginx
