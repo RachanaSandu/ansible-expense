@@ -1,0 +1,64 @@
+- name: configure frontend component
+  hosts: frontend
+  become: yes
+  tasks:
+  - name: disable default nginx
+    ansible.builtin.command: dnf module disable nginx -y
+
+  - name: enable nginx
+    ansible.builtin.command: dnf module enable nginx:1.24 -y 
+
+  - name: install nginx
+    ansible.builtin.dnf:
+      name: nginx
+      state: present
+
+  - name: start and enable nginx
+    ansible.builtin.service:
+      name: nginx
+      state: started
+      enabled: yes
+
+  - name: remove html directory
+    ansible.builtin.file:
+      path: /usr/share/nginx/html
+      state: absent
+
+  - name: create html directory
+    ansible.builtin.file:
+      path: /usr/share/nginx/html
+      state: directory
+
+  - name: download frontend code
+    ansible.builtin.get_url:
+      url: https://expense-builds.s3.us-east-1.amazonaws.com/expense-frontend-v2.zip
+      dest: /tmp/frontend.zip
+
+  - name: unzip frontend code
+    ansible.builtin.unarchive:
+      src: /tmp/frontend.zip
+      dest: /usr/share/nginx/html
+      remote_src: yes
+
+  - name: remove default nginx conf
+    ansible.builtin.file:
+      path: /etc/nginx/nginx.conf
+      state: absent
+
+  - name: copy expense nginx conf 
+    ansible.builtin.copy: 
+      src: nginx.conf 
+      dest: /etc/nginx/default.d/expense.conf 
+
+  - name: restart nginx
+    ansible.builtin.service:
+      name: nginx
+      state: restarted
+
+# (1) what is the way of creating the command in background? or how can we run a command in the background?                                                                                                                 Ans:-  1. nohup <command> &  it runs in background even terminal is closed.                                                  2. &  it runs in background,but if terminal closes command will be trminated. 
+# example:- run in command line like ,                                                                                       nohup ansible-playbook -i inventory.ini -e ansible_user=ec2-user -e ansible_password=give password here mongodb.yaml &>> /home/ec2-user/mongodb.log &       so, the playbook runs process in background and store in mongodb.log file
+# if you wnat to see whether the process is still running, use the tail command.  tail -f /home/ec2-user/mongodb.log
+# make sure run only at a time 2 or 3 playbooks after they completed, continue remaining playbooks, otherwise the system will be hang, because we are using t3.micro                                            
+
+
+  

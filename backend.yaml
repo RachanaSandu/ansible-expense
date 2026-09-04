@@ -1,0 +1,163 @@
+- name: configure backend component
+  hosts: backend
+  become: yes
+  tasks:
+# we use the command module because we need to run dnf module commands.
+# the service module is used to manage services, not dnf modules.
+  - name: disable default nodejs
+    ansible.builtin.command: dnf module disable nodejs -y
+
+  - name: enable nodejs:20
+    ansible.builtin.command: dnf module enable nodejs:20 -y
+
+  - name: install nodejs
+    ansible.builtin.dnf:
+      name: nodejs
+      state: present
+
+  - name: create app directory
+    ansible.builtin.file:
+      path: /app
+      state: directory
+# in shell, we need to check whether the user already exists or not, but 
+# in Ansible, the user module is Idempotent, so it automatically checks and creates the user only if needed. 
+  - name: create expense user
+    ansible.builtin.user:
+      name: expense
+      shell: /sbin/nologin
+      system: true
+      home: /app
+
+  - name: download backend code
+    ansible.builtin.get_url:
+      url: https://expense-builds.s3.us-east-1.amazonaws.com/expense-backend-v2.zip
+      dest: /tmp/backend.zip
+
+# this module thinks file exist on ansible control server. needs to extract on to remote machine
+# remote_src: yes means filrs already exist in user server
+  - name: extract backend
+    ansible.builtin.unarchive:
+      src: /tmp/backend.zip
+      dest: /app
+      remote_src: yes
+
+  - name: install dependencies
+    community.general.npm:
+      path: /app
+
+  - name: copy backend service to system directory
+    ansible.builtin.copy:
+      src: backend.service
+      dest: /etc/systemd/system/backend.service
+
+  - name: systemctl deamon reload
+    ansible.builtin.systemd_service:
+      daemon_reload: true
+
+  - name: start and enable backend
+    ansible.builtin.service:
+      name: backend
+      state: started
+      enabled: yes
+
+
+
+  - name: install mysql
+    ansible.builtin.dnf:
+      name: "{{ item }}"
+      state: installed
+    loop:
+    - mysql
+
+  - name: install PyMySQL and cryptography
+    ansible.builtin.pip:
+      name: "{{ item }}"
+      executable: pip3.9
+    loop:
+    - cryptography
+    - PyMySQL
+# Ansible is deployed using Python, so it uses Python to connect to MySQL.
+# PyMySQL is used to connect to MySQL. and cryptography is used for the password authentication.
+
+  # - name: create app directory
+  #   ansible.builtin.file:
+  #     path: /app
+  #     state: directory
+
+  # - name: create roboshop system user
+  #   ansible.builtin.user:
+  #     name: roboshop
+  #     shell: /sbin/nologin
+  #     system: true
+  #     home: /app
+
+  # - name: download shipping code
+  #   ansible.builtin.get_url:
+  #     url: https://roboshop-artifacts.s3.amazonaws.com/shipping-v3.zip
+  #     dest: /tmp/shipping.zip
+
+  # - name: extract shipping code
+  #   ansible.builtin.unarchive:
+  #     src: /tmp/shipping.zip
+  #     dest: /app
+  #     remote_src: yes
+
+  # - name: install maven dependencies
+  #   ansible.builtin.command: mvn clean package
+  #   args: 
+  #     chdir: /app
+# here, Maven will run in the /app directory.
+# after the command is completed, Ansible will go to the next task.
+  # - name: rename jar file
+  #   ansible.builtin.command: mv target/shipping-1.0.jar shipping.jar
+  #   args:
+  #     chdir: /app
+
+  # - name: copy shipping service
+  #   ansible.builtin.copy:
+  #     src: shipping.service
+  #     dest: /etc/systemd/system/shipping.service
+
+  # - name: daemon reload
+  #   ansible.builtin.systemd_service:
+  #     daemon_reload: true
+
+  # - name: enable and start service
+  #   ansible.builtin.service:
+  #     name: shipping
+  #     state: started
+  #     enabled: yes
+
+  - name: import data
+    tags:
+    - import
+    community.mysql.mysql_db:
+      name: all
+      login_user: root
+      login_password: ExpenseApp@1
+      login_host: mysql.rachanadev.online
+      state: import
+      target: "{{ item }}"
+    loop:
+    - /app/schema/backend.sql 
+
+
+# these tasks are idempotent. Idempotent means Running the same task again and again gives the same result without making unnecessary changes.
+# check if the app user can connect to MySqL. if it can connect, the data is already imported. if it can't connect, the data may not be imported yet.
+# if you want to run only a specific task, use tags.
+# Example: ansible-playbook -i inventory.ini -e ansible_user=ec2-user -e ansible_password=give password here shipping.yaml -t import   
+# -t means tags.  
+# for the shipping component, we need to create a separate database user and password.
+# the shipping application will use this user to connect to the database.
+
+  - name: restart shipping
+    tags: 
+    - import
+    ansible.builtin.service:
+      state: restarted
+      name: shipping
+
+# if MySQL blocks the host because of too many connection errors, 
+# use mysqladmin flush-hosts to unblock it. then run the playbook again.
+
+  
