@@ -151,12 +151,12 @@
 # for the shipping component, we need to create a separate database user and password.
 # the shipping application will use this user to connect to the database.
 
-  - name: restart shipping
+  - name: restart backend
     tags: 
     - import
     ansible.builtin.service:
       state: restarted
-      name: shipping
+      name: backend
 
 # if MySQL blocks the host because of too many connection errors, 
 # use mysqladmin flush-hosts to unblock it. then run the playbook again.
