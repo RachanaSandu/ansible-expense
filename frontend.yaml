@@ -54,6 +54,9 @@
     ansible.builtin.copy: 
       src: nginx.conf 
       dest: /etc/nginx/default.d/expense.conf 
+    
+  - name: test nginx configuration
+    ansible.builtin.command: nginx -t
 
   - name: restart nginx
     ansible.builtin.service:
